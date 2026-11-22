@@ -1,0 +1,28 @@
+# data (downloaded, never committed)
+data/
+starter/data/
+*.zip
+
+# trained weights and big arrays (upload to Hugging Face / Drive instead)
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.npy
+*.npz
+checkpoints/
+index/
+
+# python / notebooks
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
