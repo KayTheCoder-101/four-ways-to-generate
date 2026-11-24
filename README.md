@@ -2,10 +2,10 @@
 **Masked Autoencoders, VAEs, Diffusion and RAG — four generative models, one app**
 
 Group members:
-- Member 1 — Parts A (MAE) and D (RAG)
-- Member 2 — Parts B (VAE) and C (Diffusion)
+- Ume Kulsoom — Parts A (MAE) and D (RAG)
+- Mobeen — Parts B (VAE) and C (Diffusion)
 
-Links: [Medium blog](TODO) · [LinkedIn post](TODO) · [Trained weights](TODO)
+Links: [Medium blog](TODO) · [LinkedIn post](TODO) · [Trained weights](https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weights)
 
 ---
 
@@ -32,23 +32,46 @@ EuroSAT and BioASQ download automatically. For UHaT, download `data.zip` from
 cd starter
 python check_starter.py
 ```
-Output: TODO (paste every printed shape and count)
+Output:
+```
+EuroSAT train (16200, 3, 64, 64) test (5400, 3, 64, 64)
+few-label subset: 160 images; patches per image: (8, 64, 192)
+UHaT train (28328, 1, 28, 28) test (4747, 1, 28, 28) classes: 40
+BioASQ corpus: 40181 abstracts; test questions: 707
+example: Is capmatinib effective for glioblastoma? | relevant ids: [31776899]
+```
 
 ![EuroSAT examples](results/eurosat_examples.png)
 ![UHaT examples](results/uhat_examples.png)
 
 ## How to run each part
-- **Part A – MAE:** TODO
+- **Part A – MAE** (GPU; ~11 min on a T4):
+  ```bash
+  python part_a_mae/model.py                        # shape + correctness checks
+  python part_a_mae/pretrain.py --ckpt_dir CKPT     # A.1, 100 epochs, resumable
+  python part_a_mae/reconstruct.py --ckpt_dir CKPT  # A.2
+  python part_a_mae/classifier.py --ckpt_dir CKPT   # A.3 + A.4
+  ```
+  `CKPT` is any folder (default `checkpoints/mae`). To skip training, download `mae_final.pt` and `mae_classifier.pt` from the weights link into it.
 - **Part B – VAE:** TODO
 - **Part C – Diffusion:** TODO
 - **Part D – RAG:** TODO
 - **App:** TODO
 
 ## Trained weights
-TODO – Hugging Face / Google Drive links and where to place them
+All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weights
+
+| File | Part | Place in |
+|---|---|---|
+| `mae_final.pt` | A – pretrained MAE (encoder + decoder) | `checkpoints/mae/` |
+| `mae_classifier.pt` | A – few-label linear classifier | `checkpoints/mae/` |
 
 ## Correctness checks
-- **MAE:** exactly 48 of 64 patches masked per image; loss only on masked patches — TODO output
+- **MAE:** exactly 48 of 64 patches masked per image; loss only on masked patches (predictions at visible positions replaced with noise, loss unchanged)
+  ```
+  CHECK masked patches per image: [48.0] (expected [48.0])
+  CHECK loss only on masked patches: 0.517114 == 0.517114
+  ```
 - **VAE:** KL ≥ 0, and KL = 0 when µ = 0, log σ² = 0 — TODO output
 - **DDPM:** ᾱ_T ≈ 4×10⁻⁵; x at t = 999 looks like noise — TODO output
 - **RAG:** every chunk ≤ 150 words; every embedding has norm 1; perfect ranking gives Hit@k = Recall@k = MRR@10 = 1 — TODO output
@@ -57,22 +80,22 @@ TODO – Hugging Face / Google Drive links and where to place them
 ### Table 1 – Data
 | | |
 |---|---|
-| EuroSAT train / test images; labelled images used | |
-| UHaT character classes; train / test images | |
-| BioASQ abstracts; chunks; test questions | |
+| EuroSAT train / test images; labelled images used | 16,200 / 5,400; 160 |
+| UHaT character classes; train / test images | 40; 28,328 / 4,747 |
+| BioASQ abstracts; chunks; test questions | 40,181; TODO; 707 |
 | Mean number of relevant abstracts per test question | |
 
 ### Table 2 – Training
 | Model | Parameters | Final training loss | Time / GPU |
 |---|---|---|---|
-| MAE (encoder + decoder) | | | |
+| MAE (encoder + decoder) | 3,962,752 | 0.0062 (masked MSE) | 10.7 min / Tesla T4 |
 | VAE | | | |
 | DDPM U-Net | | | |
 
 ### Table 3 – Image results
 | | |
 |---|---|
-| MAE few-label classifier: test accuracy | |
+| MAE few-label classifier: test accuracy | 53.4% (chance 10%) |
 | VAE: test negative ELBO = reconstruction + KL (nats) | |
 | Diffusion: blind test, member 1 / member 2 correct (of 40) | |
 | Diffusion: images where both members agreed (of 40) | |
@@ -90,6 +113,11 @@ TODO – Hugging Face / Google Drive links and where to place them
 | "I don't know" rate | |
 | Human: supported, member 1 / member 2 (of 20) | |
 | Human: correct, member 1 / member 2 (of 20) | |
+
+## Part A figures
+![MAE pretraining loss](results/figures/mae_pretrain_loss.png)
+![MAE reconstructions: masked input / reconstruction / original](results/figures/mae_reconstructions.png)
+![MAE confusion matrix](results/figures/mae_confusion_matrix.png)
 
 ## App screenshots
 TODO – MAE tab, VAE tab, Diffusion tab, RAG tab
