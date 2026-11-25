@@ -2,6 +2,7 @@
 data/
 starter/data/
 *.zip
+part_c_diffusion/blind_key.csv
 
 # trained weights and big arrays (upload to Hugging Face / Drive instead)
 *.pt
