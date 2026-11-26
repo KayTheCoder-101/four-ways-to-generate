@@ -3,7 +3,7 @@
 
 Group members:
 - Ume Kulsoom — Parts A (MAE) and D (RAG)
-- Mobeen — Parts B (VAE) and C (Diffusion)
+- Mobeen Rukhsar — Parts B (VAE) and C (Diffusion)
 
 Links: [Medium blog](TODO) · [LinkedIn post](TODO) · [Trained weights](https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weights)
 
@@ -53,8 +53,20 @@ example: Is capmatinib effective for glioblastoma? | relevant ids: [31776899]
   python part_a_mae/classifier.py --ckpt_dir CKPT   # A.3 + A.4
   ```
   `CKPT` is any folder (default `checkpoints/mae`). To skip training, download `mae_final.pt` and `mae_classifier.pt` from the weights link into it.
-- **Part B – VAE:** TODO
-- **Part C – Diffusion:** TODO
+- **Part B – VAE** (GPU; ~30 s on a T4):
+  ```bash
+  cd part_b_vae
+  python check_vae.py                                  # correctness checks
+  python train.py --data-root ../starter/data/uhat     # B.1–B.3, 30 epochs -> vae.pt + loss curves
+  python figures.py                                    # B.4 reconstructions, 64 samples, interpolation
+  ```
+- **Part C – Diffusion** (GPU; ~35 min on a T4):
+  ```bash
+  cd part_c_diffusion
+  python check_diffusion.py      # schedule checks + forward-noising figure (C.1, C.2)
+  python train.py                # C.3, 40 epochs -> ddpm.pt + loss curve
+  python figures.py              # C.4, C.5: 40 × 8 sample grid, denoising sequence, blind-test sheet
+  ```
 - **Part D – RAG** (GPU; ~10 min on a T4 for everything):
   ```bash
   export RAG_INDEX=/path/to/index.pt                # optional, default part_d_rag/index.pt
@@ -66,7 +78,13 @@ example: Is capmatinib effective for glioblastoma? | relevant ids: [31776899]
   python part_d_rag/generation_eval.py  # D.6  ROUGE-L, citation precision, "I don't know" rate
   ```
   To skip `embed.py`, download `rag_index.pt` from the weights link and point `RAG_INDEX` at it.
-- **App:** TODO
+- **App** (Gradio, 4 tabs; runs on CUDA, Apple MPS or CPU):
+  ```bash
+  python app/make_uhat_assets.py   # once, needs UHaT in starter/data/uhat: one example per character
+  python app/app.py                # open http://127.0.0.1:7860   (add --share on Colab/Kaggle)
+  ```
+  Weights are taken from `checkpoints/` (or `part_b_vae/vae.pt`, `part_c_diffusion/ddpm.pt`) if present,
+  otherwise downloaded from the Hugging Face repo. `RAG_INDEX=/path/to/index.pt` points the RAG tab at a local index.
 
 ## Trained weights
 All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weights
@@ -75,6 +93,8 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
 |---|---|---|
 | `mae_final.pt` | A – pretrained MAE (encoder + decoder) | `checkpoints/mae/` |
 | `mae_classifier.pt` | A – few-label linear classifier | `checkpoints/mae/` |
+| `vae.pt` | B – VAE (`{"model", "class_names"}`) | `part_b_vae/` |
+| `ddpm.pt` | C – DDPM U-Net (`{"model", "class_names", "epoch"}`) | `part_c_diffusion/` |
 | `rag_index.pt` | D – chunk embeddings (79,332 × 384), chunk texts and abstract ids | path in `RAG_INDEX` |
 
 ## Correctness checks
@@ -83,8 +103,19 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
   CHECK masked patches per image: [48.0] (expected [48.0])
   CHECK loss only on masked patches: 0.517114 == 0.517114
   ```
-- **VAE:** KL ≥ 0, and KL = 0 when µ = 0, log σ² = 0 — TODO output
-- **DDPM:** ᾱ_T ≈ 4×10⁻⁵; x at t = 999 looks like noise — TODO output
+- **VAE:** KL ≥ 0, and KL = 0 when µ = 0, log σ² = 0
+  ```
+  KL min over 1000 random posteriors: 13.632020950317383
+  KL at mu=0, logvar=0: [-0.0, -0.0, -0.0, -0.0]
+  loss check: total=554.10 recon=554.08 kl=0.02
+  ALL VAE CHECKS PASSED
+  ```
+- **DDPM:** ᾱ_T ≈ 4×10⁻⁵, so x_T is almost pure noise (see the t = 999 panel of the forward-noising figure)
+  ```
+  betas: 0.0001 -> 0.02 (len 1000)
+  alpha_bar at t=0: 0.999900
+  alpha_bar_T (t=999): 4.036e-05   (expected about 4e-5)
+  ```
 - **RAG:** every chunk ≤ 150 words (consecutive chunks share 30); every embedding has norm 1; a perfect ranking gives Hit@k = Recall@k = MRR@10 = 1
   ```
   CHECK longest chunk: 150 words (<= 150); overlap = 30 words
@@ -105,14 +136,14 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
 | Model | Parameters | Final training loss | Time / GPU |
 |---|---|---|---|
 | MAE (encoder + decoder) | 3,962,752 | 0.0062 (masked MSE) | 10.7 min / Tesla T4 |
-| VAE | | | |
-| DDPM U-Net | | | |
+| VAE | 220,385 | 129.96 (negative ELBO, nats) | 25 s / Tesla T4 |
+| DDPM U-Net | 4,028,353 | 0.0230 (L_simple) | 34.9 min / Tesla T4 |
 
 ### Table 3 – Image results
 | | |
 |---|---|
 | MAE few-label classifier: test accuracy | 53.4% (chance 10%) |
-| VAE: test negative ELBO = reconstruction + KL (nats) | |
+| VAE: test negative ELBO = reconstruction + KL (nats) | 130.38 = 105.96 + 24.42 |
 | Diffusion: blind test, member 1 / member 2 correct (of 40) | |
 | Diffusion: images where both members agreed (of 40) | |
 
@@ -136,6 +167,18 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
 ![MAE pretraining loss](results/figures/mae_pretrain_loss.png)
 ![MAE reconstructions: masked input / reconstruction / original](results/figures/mae_reconstructions.png)
 ![MAE confusion matrix](results/figures/mae_confusion_matrix.png)
+
+## Part B figures
+![VAE loss terms](results/vae_loss_terms.png)
+![VAE reconstructions](results/vae_reconstructions.png)
+![VAE samples](results/vae_samples.png)
+![VAE interpolation](results/vae_interpolation.png)
+
+## Part C figures
+![Forward noising](results/ddpm_forward.png)
+![DDPM loss](results/ddpm_loss.png)
+![40 × 8 samples](results/ddpm_samples_grid.png)
+![Denoising](results/ddpm_denoising.png)
 
 ## Part D figures
 ![RAG Recall@k](results/figures/rag_recall_at_k.png)

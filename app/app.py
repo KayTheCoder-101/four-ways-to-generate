@@ -22,7 +22,8 @@ for p in [os.path.join(ROOT,"starter"),os.path.join(ROOT,"part_d_rag")]:
         sys.path.insert(0,p)
 
 HF_REPO=os.environ.get("HF_REPO","KayTheCoderrrrrrr/four-ways-to-generate-weights")
-LOCAL_DIRS=[os.path.join(ROOT,"checkpoints",d) for d in ("","mae","vae","ddpm","rag")]
+LOCAL_DIRS=[os.path.join(ROOT,"checkpoints",d) for d in ("","mae","vae","ddpm","rag")]+\
+           [os.path.join(ROOT,"part_b_vae"),os.path.join(ROOT,"part_c_diffusion")]
 ASSETS=os.path.join(HERE,"assets","uhat_examples.json")
 NOTICE="For educational use only. Not medical advice."
 
@@ -56,6 +57,9 @@ def load_module(alias,relpath):
     path=os.path.join(ROOT,relpath)
     if not os.path.exists(path):
         raise FileNotFoundError(f"{relpath} not found")
+    folder=os.path.dirname(path)            #so the file can import its neighbours (e.g. sampler -> schedule)
+    if folder not in sys.path:
+        sys.path.insert(0,folder)
     spec=importlib.util.spec_from_file_location(alias,path)
     module=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -78,11 +82,25 @@ def uhat_assets():
     return a["class_names"],imgs
 
 
+def load_ckpt(filename):
+    """Parts B and C save {"model": state_dict, "class_names": [...]}; plain state_dicts work too."""
+    ckpt=torch.load(weight_path(filename),map_location=DEVICE)
+    if isinstance(ckpt,dict) and "model" in ckpt:
+        return ckpt["model"],ckpt.get("class_names")
+    return ckpt,None
+
+
+@lru_cache(None)
 def class_names():
-    try:
-        return uhat_assets()[0]
-    except Exception:
-        return [f"class {i}" for i in range(40)]
+    """The 40 UHaT character names, in the order the models were trained with."""
+    for fn in (lambda:uhat_assets()[0],lambda:load_ckpt("ddpm.pt")[1],lambda:load_ckpt("vae.pt")[1]):
+        try:
+            names=fn()
+            if names:
+                return list(names)
+        except Exception:
+            pass
+    return [f"class {i}" for i in range(40)]
 
 
 #-----------Tab 1: MAE (Part A)
@@ -121,9 +139,9 @@ def mae_run(idx,seed):
 #-----------Tab 2: VAE (Part B)
 @lru_cache(None)
 def vae_model():
-    m=load_module("part_b_model","part_b_vae/model.py")
-    model=m.VAE().to(DEVICE)
-    model.load_state_dict(torch.load(weight_path("vae_final.pt"),map_location=DEVICE))
+    m=load_module("part_b_vae","part_b_vae/vae.py")
+    model=m.VAE(d=16).to(DEVICE)
+    model.load_state_dict(load_ckpt("vae.pt")[0])
     model.eval()
     return model
 
@@ -138,7 +156,11 @@ def vae_samples():
 
 def vae_interpolate(name_a,name_b,alpha):
     model=vae_model()
-    names,imgs=uhat_assets()
+    try:
+        _,imgs=uhat_assets()
+    except FileNotFoundError:
+        raise gr.Error("Interpolation needs app/assets/uhat_examples.json - run python app/make_uhat_assets.py once")
+    names=class_names()
     xa=imgs[names.index(name_a)][None].to(DEVICE)
     xb=imgs[names.index(name_b)][None].to(DEVICE)
     with torch.no_grad():
@@ -154,20 +176,29 @@ def vae_interpolate(name_a,name_b,alpha):
 #-----------Tab 3: Diffusion (Part C)
 @lru_cache(None)
 def ddpm_bundle():
-    m=load_module("part_c_ddpm","part_c_diffusion/ddpm.py")
-    unet=m.build_unet().to(DEVICE)
-    unet.load_state_dict(torch.load(weight_path("ddpm_final.pt"),map_location=DEVICE))
+    from diffusers import UNet2DModel
+    schedule=load_module("schedule","part_c_diffusion/schedule.py")
+    sampler=load_module("sampler","part_c_diffusion/sampler.py")
+    unet=UNet2DModel(                         #exact constructor from the manual (same as part_c_diffusion/train.py)
+        sample_size=28,in_channels=1,out_channels=1,layers_per_block=2,
+        block_out_channels=(32,64,128),
+        down_block_types=("DownBlock2D","AttnDownBlock2D","AttnDownBlock2D"),
+        up_block_types=("AttnUpBlock2D","AttnUpBlock2D","UpBlock2D"),
+        num_class_embeds=40).to(DEVICE)
+    unet.load_state_dict(load_ckpt("ddpm.pt")[0])
     unet.eval()
-    return m,unet
+    betas,alphas,alpha_bars=schedule.make_schedule(device=DEVICE)
+    return sampler,unet,(betas,alphas,alpha_bars)
 
 
 def ddpm_generate(name,seed,progress=gr.Progress()):
-    m,unet=ddpm_bundle()
+    sampler,unet,sched=ddpm_bundle()
     torch.manual_seed(int(seed))
     label=class_names().index(name)
     progress(0,desc="Denoising 1000 steps...")
     with torch.no_grad():
-        x=m.sample(unet,torch.full((8,),label,dtype=torch.long,device=DEVICE),DEVICE)   #[-1, 1]
+        labels=torch.full((8,),label,dtype=torch.long,device=DEVICE)
+        x,_=sampler.sample(unet,labels,*sched)                #DDPM Algorithm 2, output in [-1, 1]
     x=(x+1)/2
     return [to_pil(x[i],112) for i in range(8)]
 
