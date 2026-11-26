@@ -5,7 +5,7 @@ Group members:
 - Ume Kulsoom — Parts A (MAE) and D (RAG)
 - Mobeen Rukhsar — Parts B (VAE) and C (Diffusion)
 
-Links: [Medium blog](TODO) · [LinkedIn post](TODO) · [Trained weights](https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weights)
+Links: [Medium blog](https://medium.com/@f230013/four-generative-models-built-mostly-by-hand-52ee02b691e0) · [LinkedIn post](ADD-LINKEDIN-POST-URL) · [Trained weights](https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weights)
 
 ---
 
@@ -125,7 +125,7 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
 
 ## Results
 ### Table 1 – Data
-| | |
+| Item | Value |
 |---|---|
 | EuroSAT train / test images; labelled images used | 16,200 / 5,400; 160 |
 | UHaT character classes; train / test images | 40; 28,328 / 4,747 |
@@ -140,12 +140,12 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
 | DDPM U-Net | 4,028,353 | 0.0230 (L_simple) | 34.9 min / Tesla T4 |
 
 ### Table 3 – Image results
-| | |
+| Item | Value |
 |---|---|
 | MAE few-label classifier: test accuracy | 53.4% (chance 10%) |
 | VAE: test negative ELBO = reconstruction + KL (nats) | 130.38 = 105.96 + 24.42 |
-| Diffusion: blind test, member 1 / member 2 correct (of 40) | |
-| Diffusion: images where both members agreed (of 40) | |
+| Diffusion: blind test, member 1 / member 2 correct (of 40) | pending – filled by `results/merge_human_eval.py` |
+| Diffusion: images where both members agreed (of 40) | pending – filled by `results/merge_human_eval.py` |
 
 ### Table 4 – Retrieval
 | Hit@1 | Hit@5 | Hit@10 | Recall@1 | Recall@5 | Recall@10 | MRR@10 |
@@ -155,13 +155,13 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
 98 of 707 test questions (13.9%) have no relevant abstract in the top 10 (`results/rag_failure_cases.json`).
 
 ### Table 5 – Generation (100 questions)
-| | |
+| Item | Value |
 |---|---|
 | ROUGE-L | 0.233 |
 | Citation precision | 0.586 (51 / 87 citations) |
 | "I don't know" rate | 0.16 |
-| Human: supported, member 1 / member 2 (of 20) | |
-| Human: correct, member 1 / member 2 (of 20) | |
+| Human: supported, member 1 / member 2 (of 20) | pending – filled by `results/merge_human_eval.py` |
+| Human: correct, member 1 / member 2 (of 20) | pending – filled by `results/merge_human_eval.py` |
 
 ## Part A figures
 ![MAE pretraining loss](results/figures/mae_pretrain_loss.png)
@@ -179,11 +179,21 @@ All weights: https://huggingface.co/KayTheCoderrrrrrr/four-ways-to-generate-weig
 ![DDPM loss](results/ddpm_loss.png)
 ![40 × 8 samples](results/ddpm_samples_grid.png)
 ![Denoising](results/ddpm_denoising.png)
+![Blind test: 40 shuffled samples, one per character](results/ddpm_blind_test.png)
 
 ## Part D figures
 ![RAG Recall@k](results/figures/rag_recall_at_k.png)
 
-## App screenshots
-TODO – MAE tab, VAE tab, Diffusion tab, RAG tab
+## Qualitative samples, analysis and human evaluation
+- [`results/samples.md`](results/samples.md): five RAG questions with answer, cited passages and reference, including a retrieval failure (F105-P), an "I don't know" and a hallucination (capmatinib)
+- [`results/analysis.md`](results/analysis.md): answers to E.1–E.7
+- [`results/human_eval.csv`](results/human_eval.csv): diffusion blind test and RAG supported/correct ratings by both members, merged with `python results/merge_human_eval.py`
 
-> Part D answers are for educational use only. Not medical advice
+## App screenshots
+| MAE | VAE |
+|---|---|
+| ![MAE tab](results/screenshots/app_mae.png) | ![VAE tab](results/screenshots/app_vae.png) |
+| **Diffusion** | **RAG** |
+| ![Diffusion tab](results/screenshots/app_diffusion.png) | ![RAG tab](results/screenshots/app_rag.png) |
+
+> Part D answers are for educational use only. Not medical advice.
